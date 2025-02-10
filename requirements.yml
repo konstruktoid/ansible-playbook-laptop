@@ -1,0 +1,19 @@
+---
+collections:
+  - name: ansible.posix
+    version: 2.0.0
+    source: https://github.com/ansible-collections/ansible.posix.git
+    type: git
+  - name: community.crypto
+    version: 2.24.0
+    source: https://github.com/ansible-collections/community.crypto.git
+    type: git
+  - name: community.general
+    version: 10.2.0
+    source: https://github.com/ansible-collections/community.general.git
+    type: git
+roles:
+  - name: konstruktoid.hardening
+    version: v3.0.0
+    src: https://github.com/konstruktoid/ansible-role-hardening.git
+    scm: git

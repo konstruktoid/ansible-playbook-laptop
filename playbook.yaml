@@ -1,0 +1,221 @@
+---
+- name: Configure a development laptop with Xfce4 using Ansible
+  hosts: localhost
+  any_errors_fatal: true
+  tasks:
+    - name: Configure dependencies, repositories and roles
+      become: true
+      tags:
+        - always
+      block:
+        - name: Install dependencies
+          ansible.builtin.apt:
+            name: "{{ item }}"
+            state: present
+            update_cache: true
+            install_recommends: false
+          loop:
+            - git
+            - python3-debian
+            - python3-lxml
+            - python3-pip
+
+        - name: Add Docker signing key
+          ansible.builtin.get_url:
+            url: https://download.docker.com/linux/ubuntu/gpg
+            dest: /usr/share/keyrings/docker-archive-keyring.asc
+            mode: "0644"
+
+        - name: Add Hashicorp signing key
+          ansible.builtin.get_url:
+            url: https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x798AEC654E5C15428C8E42EEAA16FCBCA621E701
+            dest: /usr/share/keyrings/hashicorp-archive-keyring.asc
+            mode: "0644"
+
+        - name: Add VirtualBox signing key
+          ansible.builtin.get_url:
+            url: https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xB9F8D658297AF3EFC18D5CDFA2F683C52980AECF
+            dest: /usr/share/keyrings/virtualbox-archive-keyring.asc
+            mode: "0644"
+
+        - name: Add Docker repository
+          ansible.builtin.deb822_repository:
+            name: Docker
+            types: deb
+            uris: https://download.docker.com/linux/ubuntu
+            architectures: "{{ 'amd64' if ansible_architecture == 'x86_64' else ansible_architecture }}"
+            suites: "{{ ansible_distribution_release }}"
+            components:
+              - stable
+            signed_by: /usr/share/keyrings/docker-archive-keyring.asc
+
+        - name: Add Hashicorp repository
+          ansible.builtin.deb822_repository:
+            name: Hashicorp
+            types: deb
+            uris: https://apt.releases.hashicorp.com
+            architectures: "{{ 'amd64' if ansible_architecture == 'x86_64' else ansible_architecture }}"
+            suites: "{{ ansible_distribution_release }}"
+            components:
+              - main
+            signed_by: /usr/share/keyrings/hashicorp-archive-keyring.asc
+
+        - name: Add VirtualBox repository
+          ansible.builtin.deb822_repository:
+            name: VirtualBox
+            types: deb
+            uris: https://download.virtualbox.org/virtualbox/debian
+            architectures: "{{ 'amd64' if ansible_architecture == 'x86_64' else ansible_architecture }}"
+            suites: "{{ ansible_distribution_release }}"
+            components:
+              - contrib
+            signed_by: /usr/share/keyrings/virtualbox-archive-keyring.asc
+
+        - name: Update apt cache
+          ansible.builtin.apt:
+            update_cache: true
+
+    - name: Add _proc group
+      become: true
+      ansible.builtin.group:
+        name: _proc
+        state: present
+        gid: 2025
+
+    - name: Import the hardening role
+      ansible.builtin.import_role:
+        name: konstruktoid.hardening
+      tags:
+        - hardening
+      vars:
+        manage_aide: false
+        manage_apparmor: false
+        manage_auditd: false
+        manage_kernel_modules: false
+        manage_logind: false
+        manage_suid_sgid_permissions: false
+        packages_blocklist:
+          - apport*
+          - autofs
+          - avahi*
+          - avahi-*
+          - beep
+          - pastebinit
+          - popularity-contest
+          - prelink
+          - rpcbind
+          - rsh*
+          - talk*
+          - telnet*
+          - tftp*
+          - tuned
+          - whoopsie
+          - xinetd
+          - yp-tools
+          - ypbind
+        process_group: 2025
+        sshd_allow_groups:
+          - sudo
+        sshd_login_grace_time: 60
+        sshd_max_auth_tries: 10
+        sshd_password_authentication: true
+        sshd_use_dns: false
+        sshd_update_moduli: true
+
+    - name: Install and configure the Xfce Desktop Environment
+      tags:
+        - xfce
+      block:
+        - name: Install Xfce4 with dependencies
+          become: true
+          ansible.builtin.apt:
+            name: "{{ item }}"
+            state: present
+            update_cache: true
+            install_recommends: false
+          loop:
+            - dbus-x11
+            - xfce4
+            - xinit
+            - xorg
+
+        - name: Set xfce4-session.xml path as fact
+          ansible.builtin.set_fact:
+            xfce4_session_xml_path: "{{ ansible_env.HOME }}/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-session.xml"
+
+        - name: Stat xfce4-session.xml
+          ansible.builtin.stat:
+            path: "{{ xfce4_session_xml_path }}"
+          register: xfce4_session_xml
+
+        - name: Configure xfce4-session
+          when:
+            - not xfce4_session_xml.stat.exists
+          block:
+            - name: Create directory
+              ansible.builtin.file:
+                path: "{{ xfce4_session_xml_path | dirname }}"
+                state: directory
+                mode: "0700"
+
+            - name: Copy xfce4-session.xml
+              ansible.builtin.copy:
+                remote_src: true
+                src: "/etc/xdg/xfce4/xfconf/xfce-perchannel-xml/xfce4-session.xml"
+                dest: "{{ xfce4_session_xml_path }}"
+                mode: "0644"
+
+        - name: Add security element
+          community.general.xml:
+            path: "{{ xfce4_session_xml_path }}"
+            xpath: "/channel/property[@name='security']"
+            attribute: type
+            value: "empty"
+            pretty_print: true
+
+        - name: Add EnableTcp element
+          community.general.xml:
+            path: "{{ xfce4_session_xml_path }}"
+            xpath: "/channel/property[@name='security']/property[@name='EnableTcp']"
+            attribute: "{{ item.attr }}"
+            value: "{{ item.value }}"
+            pretty_print: true
+          loop:
+            - { attr: "type", value: "bool" }
+            - { attr: "value", value: "false" }
+
+    - name: Install developer tools
+      become: true
+      ansible.builtin.apt:
+        name: "{{ item }}"
+        state: present
+        update_cache: true
+      loop:
+        - neovim
+        - nodejs # GitHub Copilot requirement
+        - docker-ce
+        - lightdm
+        - slick-greeter
+        - slirp4netns
+        - tmux
+        - uidmap
+        - vagrant
+        - vault
+        - virtualbox
+
+    - name: Add user to the docker group
+      become: true
+      ansible.builtin.user:
+        name: "{{ ansible_user | default(lookup('ansible.builtin.env', 'USER')) }}"
+        groups: docker
+        append: true
+
+    - name: Add users to the _proc group
+      become: true
+      ansible.builtin.user:
+        name: "{{ item }}"
+        groups: _proc
+        append: true
+      loop:
+        - "{{ ansible_user | default(lookup('ansible.builtin.env', 'USER')) }}"
+        - root
