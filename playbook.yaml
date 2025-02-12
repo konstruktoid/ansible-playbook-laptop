@@ -75,6 +75,31 @@
           ansible.builtin.apt:
             update_cache: true
 
+    - name: Install and enable OpenVPN and Network Manager
+      become: true
+      tags:
+        - vpn
+      block:
+        - name: Install OpenVPN and Network Manager
+          ansible.builtin.apt:
+            name: "{{ item }}"
+            state: present
+            update_cache: true
+          loop:
+            - network-manager
+            - network-manager-gnome
+            - network-manager-openvpn
+            - openvpn
+            - openvpn-systemd-resolved
+            - python3-proton-vpn-network-manager-openvpn
+
+        - name: Enable Network Manager
+          ansible.builtin.systemd:
+            name: NetworkManager
+            enabled: true
+            state: started
+            daemon_reload: true
+
     - name: Add _proc group
       become: true
       ansible.builtin.group:
@@ -87,40 +112,56 @@
         name: konstruktoid.hardening
       tags:
         - hardening
-      vars:
-        manage_aide: false
-        manage_apparmor: false
-        manage_auditd: false
-        manage_kernel_modules: false
-        manage_logind: false
-        manage_suid_sgid_permissions: false
-        packages_blocklist:
-          - apport*
-          - autofs
-          - avahi*
-          - avahi-*
-          - beep
-          - pastebinit
-          - popularity-contest
-          - prelink
-          - rpcbind
-          - rsh*
-          - talk*
-          - telnet*
-          - tftp*
-          - tuned
-          - whoopsie
-          - xinetd
-          - yp-tools
-          - ypbind
-        process_group: 2025
-        sshd_allow_groups:
-          - sudo
-        sshd_login_grace_time: 60
-        sshd_max_auth_tries: 10
-        sshd_password_authentication: true
-        sshd_use_dns: false
-        sshd_update_moduli: true
+
+    - name: Stat /etc/openvpn/client.conf
+      become: true
+      ansible.builtin.stat:
+        path: /etc/openvpn/client.conf
+      tags:
+        - vpn
+      register: openvpn_client_conf
+
+    - name: Allow OpenVPN communications
+      become: true
+      when:
+        - openvpn_client_conf.stat.exists
+      tags:
+        - vpn
+      block:
+        - name: Get OpenVPN remote servers
+          become: true
+          ansible.builtin.shell:
+            cmd: |
+              set -o pipefail
+              echo "[$(grep -E 'remote\ [0-9]' /etc/openvpn/client.conf |\
+                    awk '{print "{ \"ip\": \""$2"\", \"port\": "$3" },"}')]" |\
+                    sed 's/,]/]/'
+          changed_when: false
+          register: openvpn_servers
+
+        - name: Allow outgoing OpenVPN traffic
+          community.general.ufw:
+            rule: allow
+            to_ip: "{{ item.ip }}"
+            to_port: "{{ item.port }}"
+            direction: out
+            comment: ansible managed
+          with_items:
+            - "{{ openvpn_servers.stdout | from_json }}"
+
+        - name: Allow traffic in on tap0
+          community.general.ufw:
+            rule: allow
+            interface: tap0
+            direction: in
+            comment: ansible managed
+
+        - name: Allow traffic out on tap0
+          community.general.ufw:
+            rule: allow
+            interface: tap0
+            direction: out
+            comment: ansible managed
 
     - name: Install and configure the Xfce Desktop Environment
       tags:
