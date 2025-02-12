@@ -1,1 +1,5 @@
-This Ansible playbook is designed to configure a development laptop with Xfce4.
+# Developer laptop setup using Ansible
+
+This repository contains an Ansible playbook to setup a developer laptop.
+
+An minimal Ubuntu server installation with `ansible` installed is assumed.
