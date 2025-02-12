@@ -236,6 +236,7 @@
         - nodejs # GitHub Copilot requirement
         - docker-ce
         - lightdm
+        - jq
         - slick-greeter
         - slirp4netns
         - tmux
@@ -260,3 +261,11 @@
       loop:
         - "{{ ansible_user | default(lookup('ansible.builtin.env', 'USER')) }}"
         - root
+
+    - name: Clean up
+      become: true
+      ansible.builtin.apt:
+        autoclean: true
+        autoremove: true
+        clean: true
+        purge: true
