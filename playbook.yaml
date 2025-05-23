@@ -163,6 +163,13 @@
             direction: out
             comment: ansible managed
 
+        - name: Enable OpenVPN
+          ansible.builtin.systemd:
+            name: openvpn
+            enabled: true
+            state: started
+            daemon_reload: true
+
     - name: Install and configure the Xfce Desktop Environment
       tags:
         - xfce
