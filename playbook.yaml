@@ -8,18 +8,6 @@
       tags:
         - always
       block:
-        - name: Install dependencies
-          ansible.builtin.apt:
-            name: "{{ item }}"
-            state: present
-            update_cache: true
-            install_recommends: false
-          loop:
-            - git
-            - python3-debian
-            - python3-lxml
-            - python3-pip
-
         - name: Add Docker signing key
           ansible.builtin.get_url:
             url: https://download.docker.com/linux/ubuntu/gpg
@@ -43,8 +31,8 @@
             name: Docker
             types: deb
             uris: https://download.docker.com/linux/ubuntu
-            architectures: "{{ 'amd64' if ansible_architecture == 'x86_64' else ansible_architecture }}"
-            suites: "{{ ansible_distribution_release }}"
+            architectures: "{{ 'amd64' if ansible_facts.architecture == 'x86_64' else ansible_facts.architecture }}"
+            suites: "{{ ansible_facts.distribution_release }}"
             components:
               - stable
             signed_by: /usr/share/keyrings/docker-archive-keyring.asc
@@ -54,8 +42,8 @@
             name: Hashicorp
             types: deb
             uris: https://apt.releases.hashicorp.com
-            architectures: "{{ 'amd64' if ansible_architecture == 'x86_64' else ansible_architecture }}"
-            suites: "{{ ansible_distribution_release }}"
+            architectures: "{{ 'amd64' if ansible_facts.architecture == 'x86_64' else ansible_facts.architecture }}"
+            suites: "{{ ansible_facts.distribution_release }}"
             components:
               - main
             signed_by: /usr/share/keyrings/hashicorp-archive-keyring.asc
@@ -65,8 +53,8 @@
             name: VirtualBox
             types: deb
             uris: https://download.virtualbox.org/virtualbox/debian
-            architectures: "{{ 'amd64' if ansible_architecture == 'x86_64' else ansible_architecture }}"
-            suites: "{{ ansible_distribution_release }}"
+            architectures: "{{ 'amd64' if ansible_facts.architecture == 'x86_64' else ansible_facts.architecture }}"
+            suites: "noble"
             components:
               - contrib
             signed_by: /usr/share/keyrings/virtualbox-archive-keyring.asc
@@ -74,6 +62,16 @@
         - name: Update apt cache
           ansible.builtin.apt:
             update_cache: true
+
+        - name: Install dependencies
+          ansible.builtin.apt:
+            name: "{{ item }}"
+            state: present
+            update_cache: true
+            install_recommends: false
+          loop:
+            - git
+            - python3-debian
 
     - name: Install and enable OpenVPN and Network Manager
       become: true
@@ -189,7 +187,7 @@
 
         - name: Set xfce4-session.xml path as fact
           ansible.builtin.set_fact:
-            xfce4_session_xml_path: "{{ ansible_env.HOME }}/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-session.xml"
+            xfce4_session_xml_path: "{{ ansible_facts.env.HOME }}/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-session.xml"
 
         - name: Stat xfce4-session.xml
           ansible.builtin.stat:
@@ -255,7 +253,7 @@
     - name: Add user to the docker group
       become: true
       ansible.builtin.user:
-        name: "{{ ansible_user | default(lookup('ansible.builtin.env', 'USER')) }}"
+        name: "{{ ansible_facts.user | default(lookup('ansible.builtin.env', 'USER')) }}"
         groups: docker
         append: true
 
@@ -266,7 +264,7 @@
         groups: _proc
         append: true
       loop:
-        - "{{ ansible_user | default(lookup('ansible.builtin.env', 'USER')) }}"
+        - "{{ ansible_facts.user | default(lookup('ansible.builtin.env', 'USER')) }}"
         - root
 
     - name: Clean up
