@@ -239,8 +239,8 @@
       loop:
         - neovim
         - nodejs # GitHub Copilot requirement
-        - docker-buildx
         - docker-ce
+        - docker-buildx-plugin
         - lightdm
         - jq
         - slick-greeter
