@@ -240,6 +240,7 @@
         - neovim
         - nodejs # GitHub Copilot requirement
         - docker-ce
+        - docker-buildx-plugin
         - lightdm
         - jq
         - slick-greeter
