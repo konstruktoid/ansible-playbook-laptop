@@ -43,7 +43,7 @@
             types: deb
             uris: https://apt.releases.hashicorp.com
             architectures: "{{ 'amd64' if ansible_facts.architecture == 'x86_64' else ansible_facts.architecture }}"
-            suites: "{{ ansible_facts.distribution_release }}"
+            suites: "{{ 'plucky' if ansible_facts.distribution_release == 'questing' else ansible_facts.distribution_release }}"
             components:
               - main
             signed_by: /usr/share/keyrings/hashicorp-archive-keyring.asc
@@ -73,30 +73,17 @@
             - git
             - python3-debian
 
-    - name: Install and enable OpenVPN and Network Manager
+    - name: Install OpenVPN
       become: true
+      ansible.builtin.apt:
+        name: "{{ item }}"
+        state: present
+        update_cache: true
       tags:
-        - vpn
-      block:
-        - name: Install OpenVPN and Network Manager
-          ansible.builtin.apt:
-            name: "{{ item }}"
-            state: present
-            update_cache: true
-          loop:
-            - network-manager
-            - network-manager-gnome
-            - network-manager-openvpn
-            - openvpn
-            - openvpn-systemd-resolved
-            - python3-proton-vpn-network-manager-openvpn
-
-        - name: Enable Network Manager
-          ansible.builtin.systemd:
-            name: NetworkManager
-            enabled: true
-            state: started
-            daemon_reload: true
+          - vpn
+      loop:
+        - openvpn
+        - openvpn-systemd-resolved
 
     - name: Add _proc group
       become: true
@@ -181,6 +168,8 @@
             install_recommends: false
           loop:
             - dbus-x11
+            - lightdm
+            - slick-greeter
             - xfce4
             - xinit
             - xorg
@@ -238,12 +227,10 @@
         update_cache: true
       loop:
         - neovim
-        - nodejs # GitHub Copilot requirement
+        - nodejs
         - docker-ce
         - docker-buildx-plugin
-        - lightdm
         - jq
-        - slick-greeter
         - slirp4netns
         - tmux
         - uidmap
@@ -267,6 +254,15 @@
       loop:
         - "{{ ansible_facts.user | default(lookup('ansible.builtin.env', 'USER')) }}"
         - root
+
+    - name: Ensure the user has linger enabled
+      ansible.builtin.command:
+        cmd: loginctl enable-linger {{ ansible_facts.ansible_user_id | default(lookup('ansible.builtin.env', 'USER')) }}
+        creates: /var/lib/systemd/linger/{{ ansible_facts.ansible_user_id | default(lookup('ansible.builtin.env', 'USER')) }}
+      register: user_linger
+      changed_when:
+        - user_linger.rc == 0
+        - "'skipped' not in user_linger.stdout"
 
     - name: Clean up
       become: true
