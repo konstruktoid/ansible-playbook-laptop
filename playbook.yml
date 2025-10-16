@@ -227,7 +227,6 @@
         update_cache: true
       loop:
         - neovim
-        - nodejs
         - docker-ce
         - docker-buildx-plugin
         - jq
